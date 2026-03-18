@@ -131,35 +131,45 @@ async function startServer() {
 
   // Local Auth
   app.post('/api/auth/register', (req, res) => {
-    const { name, password, role } = req.body;
-    if (!name || !password || !role) return res.status(400).json({ error: 'Missing fields' });
-    
-    const existing = db.prepare("SELECT * FROM users WHERE name = ?").get(name);
-    if (existing) return res.status(400).json({ error: 'Username already exists' });
+    try {
+      const { name, password, role } = req.body;
+      if (!name || !password || !role) return res.status(400).json({ error: 'Missing fields' });
+      
+      const existing = db.prepare("SELECT * FROM users WHERE name = ?").get(name);
+      if (existing) return res.status(400).json({ error: 'Username already exists' });
 
-    const hash = bcrypt.hashSync(password, 10);
-    const info = db.prepare("INSERT INTO users (name, password, role) VALUES (?, ?, ?)").run(name, hash, role);
-    
-    const user = { id: info.lastInsertRowid, name, role, points: 0, streak: 0 };
-    res.json(user);
+      const hash = bcrypt.hashSync(password, 10);
+      const info = db.prepare("INSERT INTO users (name, password, role) VALUES (?, ?, ?)").run(name, hash, role);
+      
+      const user = { id: info.lastInsertRowid, name, role, points: 0, streak: 0 };
+      res.json(user);
+    } catch (error: any) {
+      console.error('Register error:', error);
+      res.status(500).json({ error: 'Failed to register user: ' + error.message });
+    }
   });
 
   app.post('/api/auth/login', (req, res) => {
-    const { name, password } = req.body;
-    if (!name || !password) return res.status(400).json({ error: 'Missing fields' });
+    try {
+      const { name, password } = req.body;
+      if (!name || !password) return res.status(400).json({ error: 'Missing fields' });
 
-    const user = db.prepare("SELECT * FROM users WHERE name = ?").get(name) as any;
-    if (!user) return res.status(400).json({ error: 'Invalid credentials' });
+      const user = db.prepare("SELECT * FROM users WHERE name = ?").get(name) as any;
+      if (!user) return res.status(400).json({ error: 'Invalid credentials' });
 
-    if (user.password) {
-      const isValid = bcrypt.compareSync(password, user.password);
-      if (!isValid) return res.status(400).json({ error: 'Invalid credentials' });
-    } else {
-      return res.status(400).json({ error: 'Invalid credentials' });
+      if (user.password) {
+        const isValid = bcrypt.compareSync(password, user.password);
+        if (!isValid) return res.status(400).json({ error: 'Invalid credentials' });
+      } else {
+        return res.status(400).json({ error: 'Invalid credentials' });
+      }
+
+      const { password: _, ...safeUser } = user;
+      res.json(safeUser);
+    } catch (error: any) {
+      console.error('Login error:', error);
+      res.status(500).json({ error: 'Failed to login: ' + error.message });
     }
-
-    const { password: _, ...safeUser } = user;
-    res.json(safeUser);
   });
 
   // Users
